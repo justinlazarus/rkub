@@ -11,16 +11,10 @@ class Player(var name: String, var position: Position) {
         }
     }
 
-    private var rack = fillRack(Bin(mutableListOf()))
-    private var playedInitialMeld = false
+    var rack = Bin(mutableListOf())
 
-    private fun fillRack(pool: Bin): Bin {
-        return pool.also { bin ->
-            repeat(
-                times = Tile.NUMBER_OF_TILES_PER_RACK,
-                action = { bin.addRandomTile(pool) }
-            )
-        }
+    fun fillRack(pool: Bin) {
+        repeat(Tile.RACK_TILE_COUNT_AT_START) { rack.addRandomTile(pool) }
     }
 
     fun isRackEmpty(): Boolean {
@@ -32,11 +26,16 @@ class Player(var name: String, var position: Position) {
         .also { if (this.playedInitialMeld) it.playStandard() else it.playInitialMeld() }
     }
 
+    private var playedInitialMeld = false
+
     private class Turn(var gameState: Game.State, var player: Player) {
 
         fun playInitialMeld( ): Boolean {
             val groups = getGroups(Bin(player.rack.tiles))
-            return true
+
+            if (groups.isEmpty()) player.rack.addRandomTile(gameState.pool)
+
+            return false
         }
 
         fun playStandard(): Boolean {
@@ -53,13 +52,19 @@ class Player(var name: String, var position: Position) {
         }
 
         private fun getGroups(bin: Bin): List<Group> {
-            val potentialNumbers = bin.tiles
+            val tiles = bin.tiles
                 .sortedByDescending { it.number }
                 .groupingBy { Pair(it.number, it) }.eachCount().keys
                 .groupingBy { it.first }.eachCount()
                 .filter { bin.getGroupFilter(it) }.keys
                 .map { potential -> bin.tiles.filter { it.number == potential } }
                 .flatten()
+
+            // First take any tiles that can make a group without jokers
+            val jokerlessGroups = tiles
+                .groupingBy { it.number }.eachCount().filter { it.value > 2 }.keys
+                .map { potential -> bin.tiles.filter { it.number == potential } }.flatten()
+                .groupBy { it.number }.map { Group(it.value) }
 
             return listOf()
         }

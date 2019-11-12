@@ -8,6 +8,7 @@ class Game(playerNames: List<String>) {
     )
 
     fun start() {
+        gameState.players.forEach{ it.fillRack(gameState.pool) }
         gameState.run {
             do { players.forEach { it.play(this) }
             } while (players.filter { it.isRackEmpty() }.count() == 0 )

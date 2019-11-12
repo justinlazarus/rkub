@@ -18,14 +18,14 @@ class Bin(var tiles: MutableList<Tile>) {
         return this.tiles.filter { it.number == null }
     }
 
-    fun getGroupFilter(tileSet: Map.Entry<Int?, Int>): Boolean {
+    fun getGroupFilter(tile: Map.Entry<Int?, Int>): Boolean {
         return when(this.hasJokerTiles()) {
-            true -> (tileSet.value > 2)
-            false -> (tileSet.value == 2)
+            true -> (tile.value > 1)
+            false -> (tile.value > 2)
         }
     }
 
-    private fun hasJokerTiles(): Boolean {
+    fun hasJokerTiles(): Boolean {
         return (this.tiles.filter { it.number == null }.count() > 0)
     }
 }
