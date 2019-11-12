@@ -13,8 +13,6 @@ class Tile(var color: TileColor, var number: Int?, var serial: Int) {
 }
 
 // Tile collections
-class Run(var tiles: MutableList<Tile>)
-class Group(var tiles: List<Tile>)
 
 fun getTileSet(): MutableList<Tile> {
     return setOf(
