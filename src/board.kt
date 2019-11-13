@@ -2,40 +2,82 @@ import kotlin.random.Random
 
 inline class TileId(val tileId: Int)
 
+open class Meld(var tiles: MutableList<Tile>) {
+
+    val tileCount: Int = this.tiles.size
+    val score: Int = this.tiles.map { it.tileNumber.number }.sum()
+
+}
+
+open class Bin(var tiles: MutableMap<TileId, Tile>) {
+
+    val tileCount: Int = this.tiles.size
+    val jokerCount: Int = this.tiles.filter { it.value.isJoker }.size
+    val numericCount: Int = this.tiles.filter { !it.value.isJoker }.size
+    val score: Int = this.tiles.map { it.value.tileNumber.number }.sum()
+
+    fun addTile(tile: Tile) {
+        tiles[tile.tileNumber.id] = tile
+    }
+
+    fun removeTile(tile: Tile): Tile? = tiles.remove(tile.tileNumber.id)
+
+    fun fill(newTiles: List<Tile>) {
+        tiles = newTiles.associateBy { it.tileNumber.id }.toMutableMap()
+    }
+
+    fun empty() {
+        tiles = mutableMapOf()
+    }
+
+}
+
 class TileNumber(val number: Int): Comparable<TileNumber>{
+
     var id: TileId
         get() = this.id
         set(id) { this.id = id }
 
     override fun compareTo(other: TileNumber): Int = this.number.compareTo(other.number)
     operator fun inc(): TileNumber = TileNumber(number + 1)
+
 }
 
 class TileNumberRange(override val start: TileNumber, override val endInclusive: TileNumber ): ClosedRange<TileNumber>, Iterable<TileNumber> {
+
     override fun iterator(): Iterator<TileNumber> = NumberIterator(start, endInclusive)
     override fun contains(number: TileNumber): Boolean = number in start..endInclusive
+
 }
 
 class NumberIterator(val start: TileNumber, val endInclusive: TileNumber) : Iterator<TileNumber> {
+
     var initValue = start
     override fun hasNext(): Boolean = initValue <= endInclusive
     override fun next(): TileNumber = initValue++
+
 }
 
 class TileColor(val color: Int): Comparable<TileColor> {
+
     override fun compareTo(other: TileColor): Int = this.color.compareTo(other.color)
     operator fun inc(): TileColor = TileColor(color + 1)
+
 }
 
 class TileColorRange( override val start: TileColor, override val endInclusive: TileColor ): ClosedRange<TileColor>, Iterable<TileColor> {
+
     override fun iterator(): Iterator<TileColor> = ColorIterator(start, endInclusive)
     override fun contains(color: TileColor): Boolean = color in start..endInclusive
+
 }
 
 class ColorIterator(val start: TileColor, val endInclusive: TileColor) : Iterator<TileColor> {
+
     var initValue = start
     override fun hasNext(): Boolean = initValue <= endInclusive
     override fun next(): TileColor = initValue++
+
 }
 
 class Tile(var tileColor: TileColor, var tileNumber: TileNumber) {
@@ -58,13 +100,6 @@ class Tile(var tileColor: TileColor, var tileNumber: TileNumber) {
         this.tileColor = color
         this.tileNumber = number
     }
-
-}
-
-open class Meld(var tiles: MutableList<Tile>) {
-
-    val length: Int = this.tiles.size
-    val score: Int = this.tiles.map { it.tileNumber.number }.sum()
 
 }
 
@@ -95,32 +130,14 @@ class Run(var color: TileColor, tiles: MutableList<Tile>): Meld(tiles) {
         newLists.first?.let { tiles = it.toMutableList() }
         return newLists.second?.let{ Run(color, it.toMutableList())}
     }
+
 }
 
 class Group(var number: TileNumber, tiles: MutableList<Tile>): Meld(tiles) {
+
     val max = tiles.maxBy { it.tileColor }?.tileColor ?: TileColor(0)
     val min: TileColor = tiles.minBy { it.tileColor.color }?.tileColor ?: TileColor(0)
     val potentials = Tile.Companion.colors.filter { it !in TileColorRange(min, max) }
-}
-
-open class Bin(var tiles: MutableMap<TileId, Tile>) {
-
-    val tileCount: Int = this.tiles.size
-    val jokerCount: Int = this.tiles.filter { it.value.isJoker }.size
-    val numericCount: Int = this.tiles.filter { !it.value.isJoker }.size
-    val score: Int = this.tiles.map { it.value.tileNumber.number }.sum()
-
-    fun addTile(tile: Tile) {
-        tiles[tile.tileNumber.id] = tile
-    }
-
-    fun fill(newTiles: List<Tile>) {
-        tiles = newTiles.associateBy { it.tileNumber.id }.toMutableMap()
-    }
-
-    fun empty() {
-        tiles = mutableMapOf()
-    }
 
 }
 
@@ -136,10 +153,10 @@ class Rack(tiles: MutableMap<TileId, Tile>): Bin(tiles) {
 
 class Pool(tiles: MutableMap<TileId, Tile>): Bin(tiles) {
 
-    fun pullRandomTile(): Tile? {
+    fun pullRandomTile(): Tile {
         return this.tiles.remove(
             this.tiles.entries.elementAt(Random.nextInt(tiles.size)).key
-        )
+        ) ?: throw IllegalStateException("The pool is empty!")
     }
 
 }
@@ -158,16 +175,16 @@ class InPlay(var melds: MutableList<Meld>) {
     fun play(meld: Meld): Boolean {
         return when(meld) {
             is Run -> {
-               when {
-                   meld.length < 3 -> false
-                   meld.max > Tile.numbers.endInclusive -> false
-                   meld.min < Tile.numbers.start -> false
-                   else -> melds.add(meld)
-               }
+                when {
+                    meld.tileCount < 3 -> false
+                    meld.max > Tile.numbers.endInclusive -> false
+                    meld.min < Tile.numbers.start -> false
+                    else -> melds.add(meld)
+                }
             }
             is Group -> {
                 when {
-                    meld.length < 3 -> false
+                    meld.tileCount < 3 -> false
                     meld.max > Tile.colors.endInclusive -> false
                     meld.min < Tile.colors.start -> false
                     else -> melds.add(meld)
@@ -179,12 +196,20 @@ class InPlay(var melds: MutableList<Meld>) {
 
 }
 
-fun getTileSet(): MutableList<Tile> {
-    return setOf(
+fun getTileSet(): MutableMap<TileId, Tile> {
+
+    // Get a list of tiles used in the game. 104 numeric/colored tiles + 2 jokers. Jokers are defined with a tile
+    // number of zero.
+    val initialTiles =  setOf(
         Tile.numbers.map { number -> Tile.colors.map { color -> Tile(color, number) } }.flatten(),
         Tile.numbers.map { number -> Tile.colors.map { color -> Tile(color, number) } }.flatten(),
         setOf(Tile(Tile.RED, TileNumber(0)), Tile(Tile.BLACK, TileNumber(0)))
     ).flatten().toMutableList()
+
+    initialTiles
+        .also { tiles -> tiles.forEachIndexed { index, tile -> tile.tileNumber.id = TileId(index) } }
+        .also { tiles -> return tiles.associateBy { it.tileNumber.id }.toMutableMap() }
+
 }
 
 

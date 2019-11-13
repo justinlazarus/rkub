@@ -3,6 +3,7 @@ class Player(var name: String, var position: Position) {
     companion object {
         const val INITIAL_MELD_TARGET = 30
         const val MAX_NUMBER_OF_PLAYERS = 4
+        const val INITIAL_RACK_COUNT = 14
 
         enum class Position { TOP, RIGHT, BOTTOM, LEFT }
 
@@ -11,19 +12,18 @@ class Player(var name: String, var position: Position) {
         }
     }
 
-    var rack = Bin(mutableListOf())
-
-    fun fillRack(pool: Bin) {
-        repeat(Tile.RACK_TILE_COUNT_AT_START) { rack.addRandomTile(pool) }
-    }
+    var rack = Rack(mutableMapOf())
+    lateinit var state: Game.State
 
     fun isRackEmpty(): Boolean {
       return rack.tiles.isEmpty()
     }
 
+    fun addToGame(gameState: Game.State) = run { state = gameState }
+
     fun play(gameState: Game.State) {
-        Turn(gameState, this)
-        .also { if (this.playedInitialMeld) it.playStandard() else it.playInitialMeld() }
+        (1..INITIAL_RACK_COUNT).forEach { rack.addTile(gameState.pool.pullRandomTile()) }
+        Turn(gameState, this).also { if (this.playedInitialMeld) it.playStandard() else it.playInitialMeld() }
     }
 
     private var playedInitialMeld = false
