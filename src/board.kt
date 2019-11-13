@@ -1,11 +1,19 @@
-import kotlin.properties.Delegates
 import kotlin.random.Random
 
-open class Meld(var tiles: MutableList<Tile>) {
+open class Meld(var tiles: MutableList<Tile>, var meldInspector: MeldInspector) {
+
+    interface MeldInspector {
+        val tiles: MutableList<Tile>
+        fun getFirstTileInMeld(): Tile
+        fun getLastTileInMeld(): Tile
+        fun getMeldRange(): Any
+    }
 
     val tileCount: Int = this.tiles.size
     val score: Int = this.tiles.map { it.number.number }.sum()
-
+    val lastTileInMeld = meldInspector.getLastTileInMeld()
+    val firstTileInMeld = meldInspector.getFirstTileInMeld()
+    val meldRange = meldInspector.getMeldRange()
 }
 
 open class Bin(var tiles: MutableMap<Int, Tile>) {
@@ -34,35 +42,21 @@ open class Bin(var tiles: MutableMap<Int, Tile>) {
 class Tile(var color: TileColor, var number: TileNumber, var id: Int) {
 
     companion object {
-        const val TOTAL_TILE_COUNT = 106
+        const val JOKER_SCORE = 30
         val RED = TileColor(1)
         val ORANGE = TileColor(2)
         val BLUE = TileColor(3)
         val BLACK = TileColor(4)
 
-        val tileIds = 1..TOTAL_TILE_COUNT
+        val tileIds = 1..Game.TOTAL_TILE_COUNT
         val colors = TileColorRange(RED, BLACK)
         val numbers = TileNumberRange(TileNumber(1), TileNumber(13))
 
-        fun getTileset(): MutableMap<Int, Tile> {
-            return with(tileIds.iterator()) {
-                listOf(getTiles(this), getTiles(this), getJokers(this))
-                    .flatten().associateBy { it.id }.toMutableMap()
-            }
-        }
-
-        private fun getTiles(idGenerator: IntIterator) = Tile.numbers .map { number -> Tile.colors
-            .map { color -> Tile(color, number, idGenerator.next()) }
-        }.flatten()
-
-        private fun getJokers(idGenerator: IntIterator) = setOf(
-            Tile(Tile.RED, TileNumber(0), idGenerator.next()),
-            Tile(Tile.BLACK, TileNumber(0), idGenerator.next())
-        )
+        fun getNullTile() = Tile(Tile.BLACK, TileNumber(-1), 0)
     }
 
-    val isJoker: Boolean = this.number.number == 0
-    val isNumeric: Boolean = this.number.number != 0
+    val isJoker: Boolean = this.number.number == JOKER_SCORE
+    val isNumeric: Boolean = this.number in Tile.numbers
     val score: Int = this.number.number
 
     fun activateJoker(color: TileColor, number: TileNumber) {
@@ -72,50 +66,57 @@ class Tile(var color: TileColor, var number: TileNumber, var id: Int) {
 
 }
 
-class Run(var color: TileColor, tiles: MutableList<Tile>): Meld(tiles) {
+class Run(var color: TileColor, tiles: MutableList<Tile>, meldInspector: RunInspector): Meld(tiles, meldInspector) {
 
-    val max = tiles.maxBy { it.number }?.number ?: TileNumber(-1)
-    val min = tiles.minBy { it.number }?.number ?: TileNumber(-1)
-    val potentials = Tile.Companion.numbers.filter { it !in TileNumberRange(min, max) }
-
-    fun shift(tile: Tile): Tile? {
-        val tileToShift = when{
-            tile.number !in min..max -> null
-            tile.number < min -> tiles.
-            tile.number > max -> tiles[min.id]
-            else -> null
-        }
-        tiles.add(tile)
-        return tileToShift
+    class RunInspector(tiles: MutableList<Tile>): MeldInspector {
+        override val tiles = tiles
+        override fun getFirstTileInMeld() = tiles.minBy { it.number } ?: throw IllegalStateException("Invalid run")
+        override fun getLastTileInMeld() = tiles.maxBy { it.number } ?: throw IllegalStateException("Invalid run")
+        override fun getMeldRange() = TileNumberRange( getFirstTileInMeld().number, getLastTileInMeld().number )
     }
 
-    fun split(tile: Tile): Run? {
-        var newLists = when {
-            tiles.size < 6 -> Pair(null, null)
-            tile.number !in min..max -> Pair(null, null)
-            else -> tiles.partition { it.number < tile.number }
-        }
+    val runRange = meldRange as TileNumberRange
+    val potentials = Tile.numbers.filter { it !in runRange }
 
-        newLists.first?.let { tiles = it.toMutableList() }
-        return newLists.second?.let{ Run(color, it.toMutableList())}
+    fun shift(tile: Tile) = when {
+        tile.number !in runRange -> null
+        tile.number < firstTileInMeld.number -> tiles[lastTileInMeld.id]
+        tile.number > lastTileInMeld.number -> tiles[firstTileInMeld.id]
+        else -> null
+    }.also { tiles.add(tile) }
+
+    fun split(newTile: Tile) = when {
+        tiles.size < 6 -> null
+        newTile.number !in runRange -> null
+        else -> tiles.partition { it.number < newTile.number }
+    }.also {
+        tiles = it?.first?.toMutableList() ?: throw IllegalStateException("Failed to split run")
+    }.let {
+        Run( color, it?.second?.toMutableList() ?: throw IllegalStateException("Failed to split run"), RunInspector(tiles) )
     }
 
 }
 
-class Group(var number: TileNumber, tiles: MutableList<Tile>): Meld(tiles) {
+class Group( var number: TileNumber, tiles: MutableList<Tile>, meldInspector: GroupInspector ): Meld(tiles, meldInspector) {
 
-    val max = tiles.maxBy { it.color }?.color ?: TileColor(0)
-    val min: TileColor = tiles.minBy { it.color.color }?.color ?: TileColor(0)
-    val potentials = Tile.Companion.colors.filter { it !in TileColorRange(min, max) }
+    class GroupInspector(tiles: MutableList<Tile>): MeldInspector {
+        override val tiles = tiles
+        override fun getFirstTileInMeld() = tiles.minBy { it.color } ?: throw IllegalStateException("Invalid group")
+        override fun getLastTileInMeld() = tiles.maxBy { it.color } ?: throw IllegalStateException("Invalid group")
+        override fun getMeldRange() = TileColorRange( getFirstTileInMeld().color, getLastTileInMeld().color )
+    }
+
+    val groupRange = meldRange as TileColorRange
+    val potentials = Tile.colors.filter { it !in groupRange }
 
 }
 
-class Rack(tiles: MutableMap<TileId, Tile>): Bin(tiles) {
+class Rack(tiles: MutableMap<Int, Tile>): Bin(tiles) {
 
     val totalScore: Int = tiles.toList().sumBy { it.second.score }
 
     fun playTile(tile: Tile): Tile? {
-        return tiles.remove(tile.number.id)
+        return tiles.remove(tile.id)
     }
 
     fun getPotentialRuns(): Map<TileColor, List<TileNumber>> {
@@ -129,7 +130,7 @@ class Rack(tiles: MutableMap<TileId, Tile>): Bin(tiles) {
 
 }
 
-class Pool(tiles: MutableMap<TileId, Tile>): Bin(tiles) {
+class Pool(tiles: MutableMap<Int, Tile>): Bin(tiles) {
 
     fun pullRandomTile(): Tile {
         return this.tiles.remove(
@@ -143,32 +144,8 @@ class InPlay(var melds: MutableList<Meld>) {
 
     val meldCount: Int = melds.size
     val totalScore: Int = melds.sumBy { it.score }
-    fun getPotentialRuns(): Map<TileColor, List<TileNumber>> = melds
-        .filterIsInstance<Run>().associate { it.color to it.potentials }
-    fun getPotentialGroups(): Map<TileNumber, List<TileColor>> = melds
-        .filterIsInstance<Group>().associate { it.number to it.potentials }
 
-    fun play(meld: Meld): Boolean {
-        return when(meld) {
-            is Run -> {
-                when {
-                    meld.tileCount < 3 -> false
-                    meld.max > Tile.numbers.endInclusive -> false
-                    meld.min < Tile.numbers.start -> false
-                    else -> melds.add(meld)
-                }
-            }
-            is Group -> {
-                when {
-                    meld.tileCount < 3 -> false
-                    meld.max > Tile.colors.endInclusive -> false
-                    meld.min < Tile.colors.start -> false
-                    else -> melds.add(meld)
-                }
-            }
-            else -> false
-        }
-    }
+    fun play(meld: Meld) = melds.add(meld)
 
 }
 

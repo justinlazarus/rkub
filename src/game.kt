@@ -1,5 +1,24 @@
-
 class Game(val playerNames: List<String>) {
+
+    companion object {
+        const val TOTAL_TILE_COUNT = 106
+
+        fun getTileset(): MutableMap<Int, Tile> {
+            return with(Tile.tileIds.iterator()) {
+                listOf(getTiles(this), getTiles(this), getJokers(this))
+                    .flatten().associateBy { it.id }.toMutableMap()
+            }
+        }
+
+        private fun getTiles(idGenerator: IntIterator) = Tile.numbers.map { number -> Tile.colors
+            .map { color -> Tile(color, number, idGenerator.next()) }
+        }.flatten()
+
+        private fun getJokers(idGenerator: IntIterator) = setOf(
+            Tile(Tile.RED, TileNumber(30), idGenerator.next()),
+            Tile(Tile.BLACK, TileNumber(30), idGenerator.next())
+        )
+    }
 
     lateinit var pool: Pool
     lateinit var inPlay: InPlay
@@ -7,7 +26,7 @@ class Game(val playerNames: List<String>) {
 
     fun start() {
         with(this) {
-            pool = Pool(Tile.getTileset())
+            pool = Pool(getTileset())
             inPlay = InPlay(mutableListOf<Meld>())
             players = playerNames.mapIndexed { index, name -> Player.addToGame(name, index, this) }
         }.run { while (noWinner()) { players.forEach { it.takeTurn() } } }
