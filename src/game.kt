@@ -1,23 +1,19 @@
 
-class Game(playerNames: List<String>) {
+class Game(val playerNames: List<String>) {
 
-    private var gameState = State(
-        pool = Pool(getTileSet()),
-        inPlay = InPlay(mutableListOf<Meld>()),
-        players = Player.buildPlayers(playerNames)
-    )
+    lateinit var pool: Pool
+    lateinit var inPlay: InPlay
+    lateinit var players: List<Player>
 
     fun start() {
-        gameState.run { state ->
-            do { players.forEach {
-                it.state?. ?: it.addToGame(gameState)
-                it.play(this)
-            }
-            } while (players.filter { it.isRackEmpty() }.count() == 0 )
-        }
+        with(this) {
+            pool = Pool(Tile.getTileset())
+            inPlay = InPlay(mutableListOf<Meld>())
+            players = playerNames.mapIndexed { index, name -> Player.addToGame(name, index, this) }
+        }.run { while (noWinner()) { players.forEach { it.takeTurn() } } }
     }
 
-    class State(var pool: Pool, var inPlay: InPlay, var players: List<Player>)
+    private fun noWinner() = players.none { it.isWinner() }
 }
 
 fun main() {
