@@ -1,4 +1,14 @@
+import java.util.*
+
+interface Strategy {
+
+
+}
+
+
+
 class Game(val playerNames: List<String>) {
+
 
     companion object {
         const val TOTAL_TILE_COUNT = 106
@@ -35,6 +45,7 @@ class Game(val playerNames: List<String>) {
     private fun noWinner() = players.none { it.isWinner() }
 }
 
+data class Rules(val )
 fun main() {
     Game(listOf("Justin", "Angel", "Lily")).start()
 }
