@@ -1,51 +1,36 @@
-import java.util.*
-
 interface Strategy {
 
 
 }
 
-
-
-class Game(val playerNames: List<String>) {
-
-
+class Game(val playerNames: List<String>, val numericTileSetCount: Int = Game.DEFAULT_NUMERIC_SET_COUNT) {
     companion object {
-        const val TOTAL_TILE_COUNT = 106
-
-        fun getTileset(): MutableMap<Int, Tile> {
-            return with(Tile.tileIds.iterator()) {
-                listOf(getTiles(this), getTiles(this), getJokers(this))
-                    .flatten().associateBy { it.id }.toMutableMap()
-            }
-        }
-
-        private fun getTiles(idGenerator: IntIterator) = Tile.numbers.map { number -> Tile.colors
-            .map { color -> Tile(color, number, idGenerator.next()) }
-        }.flatten()
-
-        private fun getJokers(idGenerator: IntIterator) = setOf(
-            Tile(Tile.RED, TileNumber(30), idGenerator.next()),
-            Tile(Tile.BLACK, TileNumber(30), idGenerator.next())
-        )
+        val DEFAULT_NUMERIC_SET_COUNT = 2
+        val NUMERIC_TILE_COUNT = 13
+        val JOKER_TILE_NUMBER = 0
     }
 
-    lateinit var pool: Pool
-    lateinit var inPlay: InPlay
-    lateinit var players: List<Player>
+    val tileset: List<Tile> =
+        generateSequence(1) { it + 1 }.take(numericTileSetCount)
 
-    fun start() {
-        with(this) {
-            pool = Pool(getTileset())
-            inPlay = InPlay(mutableListOf<Meld>())
-            players = playerNames.mapIndexed { index, name -> Player.addToGame(name, index, this) }
-        }.run { while (noWinner()) { players.forEach { it.takeTurn() } } }
-    }
+            // Add the numeric tiles
+            .map { generateSequence(TileColor.BLACK) { it.next() }.take(TileColor.values().size).map {
+                    color -> getNumericTiles(color) }
+            }.flatten().flatten().toMutableList()
 
-    private fun noWinner() = players.none { it.isWinner() }
+            // Add the jokers
+            .also {  it.addAll(listOf(
+                Tile(Game.JOKER_TILE_NUMBER, TileColor.RED),
+                Tile(Game.JOKER_TILE_NUMBER, TileColor.BLACK)
+            ) ) }
+
+    fun getNumericTiles(color: TileColor): Sequence<Tile> =
+        generateSequence(1) { it + 1 }.take(Game.NUMERIC_TILE_COUNT)
+        .run { this.map { number -> Tile(number, color) } }
 }
 
-data class Rules(val )
 fun main() {
-    Game(listOf("Justin", "Angel", "Lily")).start()
+  Game(listOf("Justin", "Mush", "Dan", "Sri"))
+  return Unit
 }
+
